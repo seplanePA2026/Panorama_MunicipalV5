@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Água e Esgoto - 16 Municípios BA (SNIS 2022)</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f1f5f9; color: #1e293b;
+        }
+        .header {
+            text-align: center; padding: 24px 20px;
+            background: linear-gradient(135deg, #0c4a6e, #0891b2);
+            color: white;
+        }
+        .header h1 { font-size: 1.6rem; margin-bottom: 6px; }
+        .header p { opacity: 0.9; font-size: 0.9rem; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        /* Controles */
+        .controles {
+            background: white; border-radius: 10px; padding: 18px 24px;
+            margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+        }
+        .controle-grupo { display: flex; flex-direction: column; gap: 4px; }
+        .controle-grupo label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+        select, button {
+            padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 6px;
+            font-size: 0.9rem; background: white; color: #1e293b; cursor: pointer;
+        }
+        select:focus { outline: 2px solid #0891b2; border-color: #0891b2; }
+        button {
+            background: #0891b2; color: white; border: none; font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0e7490; }
+        button.active { background: #0c4a6e; }
+        .btn-group { display: flex; gap: 4px; }
+        .btn-group button { border-radius: 4px; padding: 6px 12px; font-size: 0.8rem; }
+
+        /* Cards resumo */
+        .resumo {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px; margin-bottom: 20px;
+        }
+        .resumo-card {
+            background: white; border-radius: 10px; padding: 16px;
+            text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+            border: 2px solid transparent;
+        }
+        .resumo-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .resumo-card.selected { border-color: #0891b2; }
+        .resumo-card .numero { font-size: 1.4rem; font-weight: 700; }
+        .resumo-card .label { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+        .resumo-card .rank { font-size: 0.7rem; color: #94a3b8; margin-top: 2px; }
+
+        /* Layout principal */
+        .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+        .card {
+            background: white; border-radius: 10px; padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .card h2 { font-size: 1rem; color: #0c4a6e; margin-bottom: 4px; }
+        .card .sub { font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px; }
+        .full-width { grid-column: 1 / -1; }
+
+        /* Drilldown panel */
+        .drilldown {
+            background: white; border-radius: 10px; padding: 24px;
+            margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .drilldown.visible { display: block; }
+        .drilldown h2 { font-size: 1.2rem; color: #0c4a6e; margin-bottom: 4px; }
+        .drilldown .close {
+            float: right; background: #f1f5f9; border: none; border-radius: 6px;
+            padding: 6px 12px; cursor: pointer; font-size: 0.9rem; color: #64748b;
+        }
+        .drilldown .close:hover { background: #e2e8f0; }
+        .drill-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+        .drill-item {
+            background: #f8fafc; border-radius: 8px; padding: 12px; text-align: center;
+        }
+        .drill-item .valor { font-size: 1.1rem; font-weight: 700; color: #0c4a6e; }
+        .drill-item .rotulo { font-size: 0.75rem; color: #64748b; }
+
+        /* Tabela */
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; position: sticky; top: 0; }
+        th:first-child, td:first-child { text-align: left; }
+        tr { cursor: pointer; transition: background 0.1s; }
+        tr:hover { background: #f0f9ff; }
+        tr.destaque { background: #fef2f2; font-weight: 600; }
+        tr.selecionado { background: #e0f2fe; }
+        .fonte { font-size: 0.75rem; color: #94a3b8; text-align: center; padding: 20px; }
+
+        /* Comparação */
+        .comp-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .chip {
+            padding: 4px 10px; border-radius: 16px; font-size: 0.78rem;
+            cursor: pointer; border: 1px solid #cbd5e1; background: white;
+            transition: all 0.15s;
+        }
+        .chip.active { background: #0891b2; color: white; border-color: #0891b2; }
+        .chip:hover { border-color: #0891b2; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Dashboard Água e Esgoto - Bahia</h1>
+        <p>Comparativo dos 16 principais municípios | Dados oficiais SNIS 2022 (Base dos Dados / BigQuery)</p>
+    </div>
+
+    <div class="container">
+        <!-- Controles -->
+        <div class="controles">
+            <div class="controle-grupo">
+                <label>Município em Destaque</label>
+                <select id="selMunicipio"></select>
+            </div>
+            <div class="controle-grupo">
+                <label>Indicador Principal</label>
+                <select id="selIndicador"></select>
+            </div>
+            <div class="controle-grupo">
+                <label>Ordenação</label>
+                <div class="btn-group">
+                    <button id="btnDesc" class="active" onclick="setOrdem('desc')">Maior → Menor</button>
+                    <button id="btnAsc" onclick="setOrdem('asc')">Menor → Maior</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumo do município selecionado -->
+        <div class="resumo" id="resumoCards"></div>
+
+        <!-- Drilldown -->
+        <div class="drilldown" id="drilldown">
+            <button class="close" onclick="fecharDrilldown()">Fechar</button>
+            <h2 id="drillTitle"></h2>
+            <p class="sub" id="drillSub"></p>
+            <div class="drill-grid" id="drillGrid"></div>
+            <div id="drillChart" style="height:350px"></div>
+            <div id="drillCompare" style="height:350px; margin-top:16px"></div>
+        </div>
+
+        <!-- Gráficos principais -->
+        <div class="main-grid">
+            <div class="card">
+                <h2 id="chartTitle">Comparativo</h2>
+                <p class="sub" id="chartSub"></p>
+                <div id="chartBar" style="height:480px"></div>
+            </div>
+            <div class="card">
+                <h2>Mapa da Bahia</h2>
+                <p class="sub">Tamanho proporcional ao indicador selecionado</p>
+                <div id="chartMap" style="height:480px"></div>
+            </div>
+        </div>
+
+        <!-- Comparação entre municípios -->
+        <div class="card" style="margin-bottom:20px">
+            <h2>Comparação Direta</h2>
+            <p class="sub">Selecione municípios para comparar (clique nos chips)</p>
+            <div class="comp-controls" id="compChips"></div>
+            <div id="chartRadar" style="height:420px"></div>
+        </div>
+
+        <!-- Tabela -->
+        <div class="card full-width">
+            <h2>Tabela Completa</h2>
+            <p class="sub">Clique em uma linha para ver o drilldown do município</p>
+            <div style="overflow-x:auto">
+                <table id="tabela">
+                    <thead>
+                        <tr>
+                            <th>Município</th>
+                            <th>Pop. Água</th>
+                            <th>Pop. Esgoto</th>
+                            <th>Água (%)</th>
+                            <th>Esgoto (%)</th>
+                            <th>Trat. Esg. (%)</th>
+                            <th>Coleta (%)</th>
+                            <th>Perdas (%)</th>
+                            <th>Consumo L/hab/dia</th>
+                            <th>Rede Água (km)</th>
+                            <th>Rede Esg. (km)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="fonte">
+            Fonte: Sistema Nacional de Informações sobre Saneamento (SNIS) 2022 — Base dos Dados / BigQuery<br>
+            Dados extraídos da tabela <code>basedosdados.br_mdr_snis.municipio_agua_esgoto</code>
+        </p>
+    </div>
+
+<script>
+// ===== DADOS =====
+const DADOS = [{"nome": "Salvador", "lat": -12.9714, "lon": -38.5124, "pop_agua": 2387802, "pop_esgoto": 2135820, "atend_agua": 98.76, "atend_esgoto": 88.34, "trat_esgoto": 97.8, "perda_agua": 52.02, "coleta_esgoto": 98.97, "consumo_per_capita": 126.2, "extensao_agua": 4580.11, "extensao_esgoto": 4058.54, "ligacoes_agua": 602794, "ligacoes_esgoto": 538758, "vol_produzido": 290958.86, "vol_consumido": 133056.35, "vol_esgoto_coletado": 119732.78, "vol_esgoto_tratado": 117094.53, "receita": 1395702372.17, "despesa": 1283353394.26, "investimento": 287451382.15}, {"nome": "Feira de Santana", "lat": -12.2669, "lon": -38.9666, "pop_agua": 553321, "pop_esgoto": 326602, "atend_agua": 89.79, "atend_esgoto": 53.0, "trat_esgoto": 99.95, "perda_agua": 36.41, "coleta_esgoto": 68.42, "consumo_per_capita": 118.0, "extensao_agua": 2479.61, "extensao_esgoto": 723.81, "ligacoes_agua": 209499, "ligacoes_esgoto": 127089, "vol_produzido": 38833.73, "vol_consumido": 24056.87, "vol_esgoto_coletado": 16423.3, "vol_esgoto_tratado": 16414.82, "receita": 223454501.68, "despesa": 212353100.72, "investimento": 49223421.03}, {"nome": "Vitória da Conquista", "lat": -14.8619, "lon": -40.8444, "pop_agua": 360425, "pop_esgoto": 307469, "atend_agua": 97.18, "atend_esgoto": 82.9, "trat_esgoto": 99.16, "perda_agua": 26.68, "coleta_esgoto": 86.13, "consumo_per_capita": 109.9, "extensao_agua": 1252.33, "extensao_esgoto": 959.02, "ligacoes_agua": 113930, "ligacoes_esgoto": 96301, "vol_produzido": 19568.83, "vol_consumido": 14285.48, "vol_esgoto_coletado": 12029.26, "vol_esgoto_tratado": 11928.36, "receita": 155528243.27, "despesa": 125567942.43, "investimento": 57759469.45}, {"nome": "Camaçari", "lat": -12.6996, "lon": -38.3263, "pop_agua": 286962, "pop_esgoto": 136106, "atend_agua": 95.54, "atend_esgoto": 45.31, "trat_esgoto": 61.42, "perda_agua": 49.82, "coleta_esgoto": 41.7, "consumo_per_capita": 148.9, "extensao_agua": 1381.25, "extensao_esgoto": 235.95, "ligacoes_agua": 104837, "ligacoes_esgoto": 43556, "vol_produzido": 33149.25, "vol_consumido": 18359.85, "vol_esgoto_coletado": 6599.05, "vol_esgoto_tratado": 4053.16, "receita": 149703122.54, "despesa": 149619975.19, "investimento": 63206943.97}, {"nome": "Juazeiro", "lat": -9.4163, "lon": -40.5032, "pop_agua": 212376, "pop_esgoto": 200829, "atend_agua": 89.3, "atend_esgoto": 84.45, "trat_esgoto": 82.25, "perda_agua": 41.46, "coleta_esgoto": 64.3, "consumo_per_capita": 153.3, "extensao_agua": 529.0, "extensao_esgoto": 444.0, "ligacoes_agua": 69852, "ligacoes_esgoto": 66032, "vol_produzido": 20592.16, "vol_consumido": 12053.64, "vol_esgoto_coletado": 7751.0, "vol_esgoto_tratado": 6375.0, "receita": 62832219.0, "despesa": 63689364.39, "investimento": 2139436.34}, {"nome": "Lauro de Freitas", "lat": -12.8978, "lon": -38.3271, "pop_agua": 199809, "pop_esgoto": 79561, "atend_agua": 98.27, "atend_esgoto": 39.13, "trat_esgoto": 97.77, "perda_agua": 48.45, "coleta_esgoto": 69.1, "consumo_per_capita": 162.8, "extensao_agua": 592.88, "extensao_esgoto": 167.43, "ligacoes_agua": 59990, "ligacoes_esgoto": 22494, "vol_produzido": 26538.0, "vol_consumido": 13016.6, "vol_esgoto_coletado": 8233.81, "vol_esgoto_tratado": 8050.16, "receita": 89274103.22, "despesa": 92169851.31, "investimento": 68830398.05}, {"nome": "Itabuna", "lat": -14.7876, "lon": -39.2781, "pop_agua": 183208, "pop_esgoto": 176211, "atend_agua": 98.13, "atend_esgoto": 94.38, "trat_esgoto": 34.08, "perda_agua": 2.24, "coleta_esgoto": 87.79, "consumo_per_capita": 243.0, "extensao_agua": 443.3, "extensao_esgoto": 362.8, "ligacoes_agua": 49894, "ligacoes_esgoto": 40876, "vol_produzido": 18863.58, "vol_consumido": 17612.0, "vol_esgoto_coletado": 15462.0, "vol_esgoto_tratado": 5269.0, "receita": 59199261.06, "despesa": 61242941.67, "investimento": 6709543.83}, {"nome": "Ilhéus", "lat": -14.7889, "lon": -39.0494, "pop_agua": 156204, "pop_esgoto": 103761, "atend_agua": 87.44, "atend_esgoto": 58.08, "trat_esgoto": 100.0, "perda_agua": 32.62, "coleta_esgoto": 70.86, "consumo_per_capita": 126.0, "extensao_agua": 842.89, "extensao_esgoto": 154.07, "ligacoes_agua": 54440, "ligacoes_esgoto": 36683, "vol_produzido": 11094.99, "vol_consumido": 6922.26, "vol_esgoto_coletado": 4904.99, "vol_esgoto_tratado": 4904.99, "receita": 75568010.35, "despesa": 75627766.06, "investimento": 16554100.5}, {"nome": "Barreiras", "lat": -12.1528, "lon": -44.994, "pop_agua": 152917, "pop_esgoto": 117268, "atend_agua": 95.73, "atend_esgoto": 73.41, "trat_esgoto": 100.0, "perda_agua": 28.39, "coleta_esgoto": 69.71, "consumo_per_capita": 133.7, "extensao_agua": 678.0, "extensao_esgoto": 310.2, "ligacoes_agua": 57644, "ligacoes_esgoto": 42895, "vol_produzido": 10778.27, "vol_consumido": 7463.6, "vol_esgoto_coletado": 5184.72, "vol_esgoto_tratado": 5184.72, "receita": 85244065.39, "despesa": 67973320.04, "investimento": 8565818.37}, {"nome": "Alagoinhas", "lat": -12.1354, "lon": -38.4189, "pop_agua": 146913, "pop_esgoto": 58737, "atend_agua": 97.26, "atend_esgoto": 38.88, "trat_esgoto": 69.48, "perda_agua": 70.99, "coleta_esgoto": 38.85, "consumo_per_capita": 106.5, "extensao_agua": 656.0, "extensao_esgoto": 141.0, "ligacoes_agua": 52550, "ligacoes_esgoto": 15691, "vol_produzido": 19800.0, "vol_consumido": 5743.1, "vol_esgoto_coletado": 2231.0, "vol_esgoto_tratado": 1550.0, "receita": 44442695.43, "despesa": 35538325.12, "investimento": 1326734.36}, {"nome": "Jequié", "lat": -13.8578, "lon": -40.0844, "pop_agua": 144104, "pop_esgoto": 127324, "atend_agua": 90.74, "atend_esgoto": 80.17, "trat_esgoto": 100.0, "perda_agua": 29.14, "coleta_esgoto": 89.17, "consumo_per_capita": 107.7, "extensao_agua": 600.93, "extensao_esgoto": 463.69, "ligacoes_agua": 55536, "ligacoes_esgoto": 49244, "vol_produzido": 8184.48, "vol_consumido": 5676.69, "vol_esgoto_coletado": 5015.41, "vol_esgoto_tratado": 6062.33, "receita": 70845999.12, "despesa": 56200684.54, "investimento": 15088373.86}, {"nome": "Teixeira de Freitas", "lat": -17.5353, "lon": -39.7427, "pop_agua": 134624, "pop_esgoto": 85689, "atend_agua": 92.71, "atend_esgoto": 59.01, "trat_esgoto": 100.0, "perda_agua": 30.78, "coleta_esgoto": 73.18, "consumo_per_capita": 88.1, "extensao_agua": 443.68, "extensao_esgoto": 248.64, "ligacoes_agua": 45010, "ligacoes_esgoto": 30000, "vol_produzido": 6755.02, "vol_consumido": 4601.21, "vol_esgoto_coletado": 3367.16, "vol_esgoto_tratado": 3367.16, "receita": 45986382.26, "despesa": 46754548.04, "investimento": 7842280.9}, {"nome": "Porto Seguro", "lat": -16.4435, "lon": -39.0648, "pop_agua": 129509, "pop_esgoto": 104032, "atend_agua": 76.94, "atend_esgoto": 61.8, "trat_esgoto": 100.0, "perda_agua": 29.32, "coleta_esgoto": 100.0, "consumo_per_capita": 99.0, "extensao_agua": 438.91, "extensao_esgoto": 345.36, "ligacoes_agua": 39176, "ligacoes_esgoto": 33166, "vol_produzido": 6559.33, "vol_consumido": 4463.21, "vol_esgoto_coletado": 4986.04, "vol_esgoto_tratado": 4986.04, "receita": 56662196.26, "despesa": 49309980.94, "investimento": 5487457.23}, {"nome": "Eunápolis", "lat": -16.3768, "lon": -39.5833, "pop_agua": 105885, "pop_esgoto": 12057, "atend_agua": 93.12, "atend_esgoto": 10.6, "trat_esgoto": 100.0, "perda_agua": 22.12, "coleta_esgoto": 10.16, "consumo_per_capita": 104.2, "extensao_agua": 408.0, "extensao_esgoto": 23.73, "ligacoes_agua": 37041, "ligacoes_esgoto": 4621, "vol_produzido": 5249.18, "vol_consumido": 4057.67, "vol_esgoto_coletado": 412.3, "vol_esgoto_tratado": 412.3, "receita": 30166264.74, "despesa": 25196608.09, "investimento": 2567100.67}, {"nome": "Paulo Afonso", "lat": -9.4006, "lon": -38.2147, "pop_agua": 96762, "pop_esgoto": 38548, "atend_agua": 85.73, "atend_esgoto": 34.15, "trat_esgoto": 99.99, "perda_agua": 45.05, "coleta_esgoto": 38.67, "consumo_per_capita": 116.8, "extensao_agua": 290.53, "extensao_esgoto": 149.81, "ligacoes_agua": 36662, "ligacoes_esgoto": 14373, "vol_produzido": 9397.09, "vol_consumido": 5098.12, "vol_esgoto_coletado": 1640.41, "vol_esgoto_tratado": 1640.32, "receita": 39583122.9, "despesa": 31725436.93, "investimento": 34877376.65}, {"nome": "Simões Filho", "lat": -12.7868, "lon": -38.4013, "pop_agua": 88910, "pop_esgoto": 41794, "atend_agua": 77.61, "atend_esgoto": 36.48, "trat_esgoto": 97.77, "perda_agua": 51.95, "coleta_esgoto": 79.32, "consumo_per_capita": 126.5, "extensao_agua": 438.19, "extensao_esgoto": 113.91, "ligacoes_agua": 32220, "ligacoes_esgoto": 15115, "vol_produzido": 11814.49, "vol_consumido": 5322.26, "vol_esgoto_coletado": 3832.88, "vol_esgoto_tratado": 3747.56, "receita": 41665124.83, "despesa": 44389529.26, "investimento": 9293070.64}];
+const INDICADORES = [{"key": "atend_agua", "label": "Atendimento de Água (%)", "cor": "#2563eb", "suffix": "%", "maiorMelhor": true}, {"key": "atend_esgoto", "label": "Atendimento de Esgoto (%)", "cor": "#16a34a", "suffix": "%", "maiorMelhor": true}, {"key": "trat_esgoto", "label": "Tratamento de Esgoto (%)", "cor": "#7c3aed", "suffix": "%", "maiorMelhor": true}, {"key": "coleta_esgoto", "label": "Coleta de Esgoto (%)", "cor": "#0891b2", "suffix": "%", "maiorMelhor": true}, {"key": "perda_agua", "label": "Perdas na Distribuição (%)", "cor": "#ea580c", "suffix": "%", "maiorMelhor": false}, {"key": "consumo_per_capita", "label": "Consumo Per Capita (L/hab/dia)", "cor": "#6366f1", "suffix": " L/hab/dia", "maiorMelhor": true}, {"key": "pop_agua", "label": "Pop. Atendida Água", "cor": "#2563eb", "suffix": "", "maiorMelhor": true}, {"key": "pop_esgoto", "label": "Pop. Atendida Esgoto", "cor": "#16a34a", "suffix": "", "maiorMelhor": true}, {"key": "extensao_agua", "label": "Extensão Rede Água (km)", "cor": "#0891b2", "suffix": " km", "maiorMelhor": true}, {"key": "extensao_esgoto", "label": "Extensão Rede Esgoto (km)", "cor": "#7c3aed", "suffix": " km", "maiorMelhor": true}, {"key": "ligacoes_agua", "label": "Ligações Ativas Água", "cor": "#2563eb", "suffix": "", "maiorMelhor": true}, {"key": "ligacoes_esgoto", "label": "Ligações Ativas Esgoto", "cor": "#16a34a", "suffix": "", "maiorMelhor": true}, {"key": "vol_produzido", "label": "Volume Água Produzido (mil m³)", "cor": "#2563eb", "suffix": " mil m³", "maiorMelhor": true}, {"key": "vol_consumido", "label": "Volume Água Consumido (mil m³)", "cor": "#0891b2", "suffix": " mil m³", "maiorMelhor": true}, {"key": "vol_esgoto_coletado", "label": "Volume Esgoto Coletado (mil m³)", "cor": "#16a34a", "suffix": " mil m³", "maiorMelhor": true}, {"key": "vol_esgoto_tratado", "label": "Volume Esgoto Tratado (mil m³)", "cor": "#7c3aed", "suffix": " mil m³", "maiorMelhor": true}, {"key": "receita", "label": "Receita Operacional (R$)", "cor": "#16a34a", "suffix": "", "maiorMelhor": true}, {"key": "despesa", "label": "Despesa Total (R$)", "cor": "#e11d48", "suffix": "", "maiorMelhor": false}, {"key": "investimento", "label": "Investimento Total (R$)", "cor": "#2563eb", "suffix": "", "maiorMelhor": true}];
+
+let municipioDestaque = "Paulo Afonso";
+let indicadorAtual = "atend_agua";
+let ordem = "desc";
+let municipiosComparacao = ["Paulo Afonso", "Salvador", "Feira de Santana"];
+
+// ===== UTILITÁRIOS =====
+function fmtNum(v, suffix, isMonetary) {
+    if (v === null || v === undefined) return "—";
+    if (isMonetary && Math.abs(v) >= 1e6) return "R$ " + (v / 1e6).toFixed(1).replace(".", ",") + "M";
+    if (Math.abs(v) >= 1e3 && !suffix) return v.toLocaleString("pt-BR");
+    if (typeof v === "number" && v % 1 !== 0) return v.toFixed(2).replace(".", ",") + (suffix || "");
+    return v.toLocaleString("pt-BR") + (suffix || "");
+}
+
+function getRank(key, nome, maiorMelhor) {
+    const sorted = [...DADOS].sort((a, b) => maiorMelhor ? b[key] - a[key] : a[key] - b[key]);
+    return sorted.findIndex(m => m.nome === nome) + 1;
+}
+
+function getIndicador(key) {
+    return INDICADORES.find(i => i.key === key);
+}
+
+// ===== INIT SELECTS =====
+function initControles() {
+    const selMun = document.getElementById("selMunicipio");
+    DADOS.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m.nome;
+        opt.textContent = m.nome;
+        if (m.nome === municipioDestaque) opt.selected = true;
+        selMun.appendChild(opt);
+    });
+    selMun.addEventListener("change", (e) => { municipioDestaque = e.target.value; atualizar(); });
+
+    const selInd = document.getElementById("selIndicador");
+    INDICADORES.forEach(ind => {
+        const opt = document.createElement("option");
+        opt.value = ind.key;
+        opt.textContent = ind.label;
+        selInd.appendChild(opt);
+    });
+    selInd.addEventListener("change", (e) => { indicadorAtual = e.target.value; atualizar(); });
+
+    // Chips de comparação
+    const chips = document.getElementById("compChips");
+    DADOS.sort((a, b) => b.pop_agua - a.pop_agua).forEach(m => {
+        const chip = document.createElement("span");
+        chip.className = "chip" + (municipiosComparacao.includes(m.nome) ? " active" : "");
+        chip.textContent = m.nome;
+        chip.onclick = () => {
+            if (municipiosComparacao.includes(m.nome)) {
+                municipiosComparacao = municipiosComparacao.filter(n => n !== m.nome);
+                chip.classList.remove("active");
+            } else {
+                municipiosComparacao.push(m.nome);
+                chip.classList.add("active");
+            }
+            renderRadar();
+        };
+        chips.appendChild(chip);
+    });
+}
+
+// ===== RESUMO CARDS =====
+function renderResumo() {
+    const mun = DADOS.find(m => m.nome === municipioDestaque);
+    const container = document.getElementById("resumoCards");
+    const cards = [
+        { key: "atend_agua", label: "Água", cor: "#2563eb", suffix: "%" },
+        { key: "atend_esgoto", label: "Esgoto", cor: "#16a34a", suffix: "%" },
+        { key: "trat_esgoto", label: "Trat. Esgoto", cor: "#7c3aed", suffix: "%" },
+        { key: "coleta_esgoto", label: "Coleta Esg.", cor: "#0891b2", suffix: "%" },
+        { key: "perda_agua", label: "Perdas", cor: "#ea580c", suffix: "%" },
+        { key: "consumo_per_capita", label: "Consumo/hab", cor: "#6366f1", suffix: " L/dia" },
+        { key: "pop_agua", label: "Pop. Água", cor: "#2563eb", suffix: "" },
+        { key: "pop_esgoto", label: "Pop. Esgoto", cor: "#16a34a", suffix: "" },
+    ];
+
+    container.innerHTML = cards.map(c => {
+        const ind = getIndicador(c.key);
+        const rank = getRank(c.key, municipioDestaque, ind ? ind.maiorMelhor : true);
+        const selected = c.key === indicadorAtual ? "selected" : "";
+        return `<div class="resumo-card ${selected}" onclick="document.getElementById('selIndicador').value='${c.key}'; indicadorAtual='${c.key}'; atualizar();">
+            <div class="numero" style="color:${c.cor}">${fmtNum(mun[c.key], c.suffix)}</div>
+            <div class="label">${c.label}</div>
+            <div class="rank">${rank}º de 16</div>
+        </div>`;
+    }).join("");
+}
+
+// ===== GRÁFICO DE BARRAS =====
+function renderBarras() {
+    const ind = getIndicador(indicadorAtual);
+    // Ordenar do menor para o maior (barras horizontais: menor embaixo, maior em cima)
+    const sorted = [...DADOS].sort((a, b) => ordem === "desc" ? a[indicadorAtual] - b[indicadorAtual] : b[indicadorAtual] - a[indicadorAtual]);
+
+    const nomes = sorted.map(m => m.nome);
+    const valores = sorted.map(m => m[indicadorAtual]);
+    const cores = nomes.map(n => n === municipioDestaque ? "#e11d48" : ind.cor);
+
+    const maxVal = Math.max(...valores);
+
+    const trace = {
+        y: nomes,
+        x: valores,
+        type: "bar",
+        orientation: "h",
+        marker: { color: cores },
+        text: valores.map(v => fmtNum(v, ind.suffix, ["receita", "despesa", "investimento"].includes(indicadorAtual))),
+        textposition: "outside",
+        cliponaxis: false,
+        hovertemplate: "%{y}: %{x}" + ind.suffix + "<extra></extra>",
+    };
+
+    const layout = {
+        margin: { t: 10, b: 40, l: 140, r: 100 },
+        xaxis: { gridcolor: "#e5e7eb", title: ind.label, range: [0, maxVal * 1.25] },
+        yaxis: { automargin: true },
+        plot_bgcolor: "white",
+        paper_bgcolor: "white",
+    };
+
+    Plotly.newPlot("chartBar", [trace], layout, { responsive: true, displayModeBar: false });
+    document.getElementById("chartTitle").textContent = ind.label;
+    document.getElementById("chartSub").textContent = municipioDestaque + " destacado em vermelho";
+
+    // Click em barra abre drilldown
+    document.getElementById("chartBar").on("plotly_click", (data) => {
+        const nome = data.points[0].y;
+        abrirDrilldown(nome);
+    });
+}
+
+// ===== MAPA =====
+function renderMapa() {
+    const ind = getIndicador(indicadorAtual);
+    const maxVal = Math.max(...DADOS.map(m => m[indicadorAtual]));
+
+    const traces = DADOS.map(m => {
+        const isPa = m.nome === municipioDestaque;
+        const size = Math.max(12, (m[indicadorAtual] / maxVal) * 35);
+        return {
+            type: "scattermap",
+            lat: [m.lat],
+            lon: [m.lon],
+            mode: "markers+text",
+            marker: { size: size, color: isPa ? "#e11d48" : ind.cor, opacity: 0.85 },
+            text: [m.nome + "\n" + fmtNum(m[indicadorAtual], ind.suffix, ["receita", "despesa", "investimento"].includes(indicadorAtual))],
+            textposition: "top center",
+            textfont: { size: 9, color: isPa ? "#e11d48" : "#1e3a5f" },
+            name: m.nome,
+            showlegend: false,
+            hovertemplate: m.nome + ": " + fmtNum(m[indicadorAtual], ind.suffix, ["receita", "despesa", "investimento"].includes(indicadorAtual)) + "<extra></extra>",
+        };
+    });
+
+    const layout = {
+        map: { style: "open-street-map", center: { lat: -13.0, lon: -40.0 }, zoom: 5.3 },
+        margin: { t: 10, b: 10, l: 10, r: 10 },
+    };
+
+    Plotly.newPlot("chartMap", traces, layout, { responsive: true, displayModeBar: false });
+
+    document.getElementById("chartMap").on("plotly_click", (data) => {
+        const nome = data.points[0].text.split("\n")[0];
+        abrirDrilldown(nome);
+    });
+}
+
+// ===== RADAR DE COMPARAÇÃO =====
+function renderRadar() {
+    const indicadoresRadar = ["atend_agua", "atend_esgoto", "trat_esgoto", "coleta_esgoto", "perda_agua", "consumo_per_capita"];
+    const labels = indicadoresRadar.map(k => getIndicador(k).label.replace(/ \(%\)/, "").replace(/ \(L\/hab\/dia\)/, ""));
+    const cores = ["#2563eb", "#e11d48", "#16a34a", "#7c3aed", "#ea580c", "#0891b2", "#d97706", "#6366f1"];
+
+    // Normalizar valores (0-100) para o radar
+    const maxVals = {};
+    indicadoresRadar.forEach(k => {
+        maxVals[k] = Math.max(...DADOS.map(m => m[k]));
+    });
+
+    const traces = municipiosComparacao.map((nome, i) => {
+        const m = DADOS.find(d => d.nome === nome);
+        if (!m) return null;
+        const valores = indicadoresRadar.map(k => (m[k] / maxVals[k]) * 100);
+        return {
+            type: "scatterpolar",
+            r: [...valores, valores[0]],
+            theta: [...labels, labels[0]],
+            fill: "toself",
+            name: nome,
+            opacity: 0.6,
+            line: { color: cores[i % cores.length] },
+            hovertemplate: nome + "<br>%{theta}: %{r:.1f}<extra></extra>",
+        };
+    }).filter(Boolean);
+
+    const layout = {
+        polar: {
+            radialaxis: { visible: true, range: [0, 105], gridcolor: "#e5e7eb" },
+            bgcolor: "white",
+        },
+        showlegend: true,
+        legend: { orientation: "h", y: -0.15 },
+        margin: { t: 30, b: 60, l: 60, r: 60 },
+        paper_bgcolor: "white",
+    };
+
+    Plotly.newPlot("chartRadar", traces, layout, { responsive: true, displayModeBar: false });
+}
+
+// ===== TABELA =====
+function renderTabela() {
+    const ind = getIndicador(indicadorAtual);
+    const sorted = [...DADOS].sort((a, b) => {
+        if (ind.maiorMelhor) return ordem === "desc" ? b[indicadorAtual] - a[indicadorAtual] : a[indicadorAtual] - b[indicadorAtual];
+        return ordem === "desc" ? b[indicadorAtual] - a[indicadorAtual] : a[indicadorAtual] - b[indicadorAtual];
+    });
+
+    const tbody = document.getElementById("tabelaBody");
+    tbody.innerHTML = sorted.map(m => {
+        const cls = m.nome === municipioDestaque ? "destaque" : "";
+        return `<tr class="${cls}" onclick="abrirDrilldown('${m.nome}')">
+            <td>${m.nome}</td>
+            <td>${m.pop_agua.toLocaleString("pt-BR")}</td>
+            <td>${m.pop_esgoto.toLocaleString("pt-BR")}</td>
+            <td>${m.atend_agua.toFixed(2).replace(".",",")}</td>
+            <td>${m.atend_esgoto.toFixed(2).replace(".",",")}</td>
+            <td>${m.trat_esgoto.toFixed(2).replace(".",",")}</td>
+            <td>${m.coleta_esgoto.toFixed(2).replace(".",",")}</td>
+            <td>${m.perda_agua.toFixed(2).replace(".",",")}</td>
+            <td>${m.consumo_per_capita.toFixed(1).replace(".",",")}</td>
+            <td>${m.extensao_agua.toFixed(2).replace(".",",")}</td>
+            <td>${m.extensao_esgoto.toFixed(2).replace(".",",")}</td>
+        </tr>`;
+    }).join("");
+}
+
+// ===== DRILLDOWN =====
+function abrirDrilldown(nome) {
+    const m = DADOS.find(d => d.nome === nome);
+    if (!m) return;
+    const panel = document.getElementById("drilldown");
+    panel.classList.add("visible");
+
+    document.getElementById("drillTitle").textContent = m.nome;
+    document.getElementById("drillSub").textContent = "Detalhamento completo — SNIS 2022";
+
+    const items = [
+        { label: "Atend. Água", valor: m.atend_agua + "%", cor: "#2563eb" },
+        { label: "Atend. Esgoto", valor: m.atend_esgoto + "%", cor: "#16a34a" },
+        { label: "Trat. Esgoto", valor: m.trat_esgoto + "%", cor: "#7c3aed" },
+        { label: "Coleta Esgoto", valor: m.coleta_esgoto + "%", cor: "#0891b2" },
+        { label: "Perdas Distrib.", valor: m.perda_agua + "%", cor: "#ea580c" },
+        { label: "Consumo/hab/dia", valor: m.consumo_per_capita + " L", cor: "#6366f1" },
+        { label: "Pop. Água", valor: m.pop_agua.toLocaleString("pt-BR"), cor: "#2563eb" },
+        { label: "Pop. Esgoto", valor: m.pop_esgoto.toLocaleString("pt-BR"), cor: "#16a34a" },
+        { label: "Rede Água", valor: m.extensao_agua.toFixed(1) + " km", cor: "#0891b2" },
+        { label: "Rede Esgoto", valor: m.extensao_esgoto.toFixed(1) + " km", cor: "#7c3aed" },
+        { label: "Ligações Água", valor: m.ligacoes_agua.toLocaleString("pt-BR"), cor: "#2563eb" },
+        { label: "Ligações Esgoto", valor: m.ligacoes_esgoto.toLocaleString("pt-BR"), cor: "#16a34a" },
+        { label: "Vol. Produzido", valor: m.vol_produzido.toFixed(1) + " mil m³", cor: "#2563eb" },
+        { label: "Vol. Consumido", valor: m.vol_consumido.toFixed(1) + " mil m³", cor: "#0891b2" },
+        { label: "Esg. Coletado", valor: m.vol_esgoto_coletado.toFixed(1) + " mil m³", cor: "#16a34a" },
+        { label: "Esg. Tratado", valor: m.vol_esgoto_tratado.toFixed(1) + " mil m³", cor: "#7c3aed" },
+        { label: "Receita", valor: "R$ " + (m.receita / 1e6).toFixed(1) + "M", cor: "#16a34a" },
+        { label: "Despesa", valor: "R$ " + (m.despesa / 1e6).toFixed(1) + "M", cor: "#e11d48" },
+        { label: "Investimento", valor: "R$ " + (m.investimento / 1e6).toFixed(1) + "M", cor: "#2563eb" },
+    ];
+
+    document.getElementById("drillGrid").innerHTML = items.map(it =>
+        `<div class="drill-item">
+            <div class="valor" style="color:${it.cor}">${it.valor}</div>
+            <div class="rotulo">${it.label}</div>
+        </div>`
+    ).join("");
+
+    // Gráfico de volumes
+    const vols = [m.vol_produzido, m.vol_consumido, m.vol_esgoto_coletado, m.vol_esgoto_tratado];
+    const maxVol = Math.max(...vols);
+    Plotly.newPlot("drillChart", [{
+        x: ["Água Produzida", "Água Consumida", "Esgoto Coletado", "Esgoto Tratado"],
+        y: vols,
+        type: "bar",
+        marker: { color: ["#2563eb", "#0891b2", "#16a34a", "#7c3aed"] },
+        text: vols.map(v => v.toFixed(1)),
+        textposition: "outside",
+        cliponaxis: false,
+    }], {
+        title: { text: "Volumes (mil m³/ano)", font: { size: 13 } },
+        yaxis: { gridcolor: "#e5e7eb", range: [0, maxVol * 1.2] },
+        plot_bgcolor: "white", paper_bgcolor: "white",
+        margin: { t: 40, b: 40, l: 70, r: 20 },
+    }, { responsive: true, displayModeBar: false });
+
+    // Gráfico comparativo com destaque vs média
+    const mediaAgua = DADOS.reduce((s, d) => s + d.atend_agua, 0) / DADOS.length;
+    const mediaEsgoto = DADOS.reduce((s, d) => s + d.atend_esgoto, 0) / DADOS.length;
+    const mediaTrat = DADOS.reduce((s, d) => s + d.trat_esgoto, 0) / DADOS.length;
+    const mediaPerda = DADOS.reduce((s, d) => s + d.perda_agua, 0) / DADOS.length;
+    const mediaColeta = DADOS.reduce((s, d) => s + d.coleta_esgoto, 0) / DADOS.length;
+
+    const cats = ["Água", "Esgoto", "Trat. Esgoto", "Coleta", "Perdas"];
+    const valsMun = [m.atend_agua, m.atend_esgoto, m.trat_esgoto, m.coleta_esgoto, m.perda_agua];
+    const valsMedia = [mediaAgua, mediaEsgoto, mediaTrat, mediaColeta, mediaPerda];
+    const maxComp = Math.max(...valsMun, ...valsMedia);
+    Plotly.newPlot("drillCompare", [
+        {
+            x: cats, y: valsMun,
+            type: "bar", name: m.nome, marker: { color: "#0891b2" },
+            text: valsMun.map(v => v.toFixed(1) + "%"),
+            textposition: "outside",
+            cliponaxis: false,
+        },
+        {
+            x: cats, y: valsMedia,
+            type: "bar", name: "Média 16 municípios", marker: { color: "#cbd5e1" },
+            text: valsMedia.map(v => v.toFixed(1) + "%"),
+            textposition: "outside",
+            cliponaxis: false,
+        },
+    ], {
+        title: { text: m.nome + " vs Média dos 16 Municípios", font: { size: 13 } },
+        barmode: "group",
+        yaxis: { gridcolor: "#e5e7eb", range: [0, maxComp * 1.2] },
+        plot_bgcolor: "white", paper_bgcolor: "white",
+        margin: { t: 40, b: 40, l: 50, r: 20 },
+        legend: { orientation: "h", y: -0.15 },
+    }, { responsive: true, displayModeBar: false });
+
+    panel.scrollIntoView({ behavior: "smooth" });
+}
+
+function fecharDrilldown() {
+    document.getElementById("drilldown").classList.remove("visible");
+}
+
+// ===== ORDEM =====
+function setOrdem(o) {
+    ordem = o;
+    document.getElementById("btnDesc").className = o === "desc" ? "active" : "";
+    document.getElementById("btnAsc").className = o === "asc" ? "active" : "";
+    atualizar();
+}
+
+// ===== ATUALIZAR TUDO =====
+function atualizar() {
+    renderResumo();
+    renderBarras();
+    renderMapa();
+    renderTabela();
+}
+
+// ===== INIT =====
+initControles();
+atualizar();
+renderRadar();
+</script>
+</body>
+</html>
