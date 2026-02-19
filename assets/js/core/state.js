@@ -25,7 +25,7 @@ export const NAV_LABELS = {
   economia: "Economia",
   populacao: "População",
   educacao: "Educação",
-  secad: "SECAD",
+  cecad: "CECAD",
   agua_esgoto: "Água e Esgoto",
   atlas_vulnerabilidade: "Atlas Vulnerabilidade",
   eleitoral: "Eleitoral"
