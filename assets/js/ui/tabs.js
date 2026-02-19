@@ -3,7 +3,7 @@ import { state, NAV_LABELS } from "../core/state.js";
 import { canonCategory, escapeHtml, lower } from "../core/utils.js";
 
 const LS_CUSTOM_CATS = "gp_custom_categories_v1";
-const RESERVED_KEYS = new Set(["mapa","territorio","economia","populacao","educacao","outros","secad","eleitoral","agua_esgoto","atlas_vulnerabilidade"]);
+const RESERVED_KEYS = new Set(["mapa","territorio","economia","populacao","educacao","outros","cecad","eleitoral","agua_esgoto","atlas_vulnerabilidade"]);
 
 export function readCustomCategories(){
   try{
@@ -203,12 +203,12 @@ function setIndiceView(key){
   const meta  = $("indiceMeta");
   if(!frame) return;
 
-  const isSecad = (k === "secad");
-  const src = isSecad ? "./indices/analise_cecad.html" : "./indices/analise_eleitorado.html";
+  const isCecad = (k === "cecad");
+  const src = isCecad ? "./indices/analise_cecad.html" : "./indices/analise_eleitorado.html";
   frame.setAttribute("src", src);
 
-  if(title) title.textContent = isSecad ? "Índice SECAD" : "Índice Eleitoral";
-  if(meta)  meta.textContent  = isSecad ? "CECAD • Cadastro Único" : "Perfil do Eleitorado (2024)";
+  if(title) title.textContent = isCecad ? "Índice CECAD" : "Índice Eleitoral";
+  if(meta)  meta.textContent  = isCecad ? "CECAD • Cadastro Único" : "Perfil do Eleitorado (2024)";
 }
 
 
@@ -285,7 +285,7 @@ export function bindSideNav(){
       const changedGroup = group !== prevGroup;
 
 
-      if(group === "secad" || group === "eleitoral" || group === "agua_esgoto" || group === "atlas_vulnerabilidade"){
+      if(group === "cecad" || group === "eleitoral" || group === "agua_esgoto" || group === "atlas_vulnerabilidade"){
         resetSelection();
         state.navGroup = group;
         state.rightMode = "data";
@@ -353,7 +353,7 @@ function syncActiveNav(){
   const isMapMode = (state.navGroup === "mapa") || (state.rightMode === "map");
   document.documentElement.classList.toggle("mode-map", !!isMapMode);
 
-  const isIndice = (state.navGroup === "secad") || (state.navGroup === "eleitoral") || (state.navGroup === "agua_esgoto") || (state.navGroup === "atlas_vulnerabilidade");
+  const isIndice = (state.navGroup === "cecad") || (state.navGroup === "eleitoral") || (state.navGroup === "agua_esgoto") || (state.navGroup === "atlas_vulnerabilidade");
   document.documentElement.classList.toggle("mode-indice", !!isIndice);
   if(isIndice){
     if(state.navGroup === "agua_esgoto"){
